@@ -1,0 +1,13 @@
+/.idea
+/.vscode
+/.gitee
+*.log
+*.env
+*.lock
+*.ini
+/runtime/*
+/public/storage/*
+/public/backup/*
+/public/static/home/dev
+/public/static/home/oa
+/vendor

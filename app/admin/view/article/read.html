@@ -1,0 +1,52 @@
+{extend name="common/base"/}
+<!-- 主体 -->
+{block name="body"}
+<div class="layui-form p-4">
+	<h3 class="pb-3">文章表详情</h3>
+	<table class="layui-table layui-table-form">
+		<tr><td class="layui-td-gray-2">所属分类</td>
+			<td>
+			{eq name="$detail.cate_id" value="1"}选项一{/eq}
+			{eq name="$detail.cate_id" value="2"}选项二{/eq}
+			</td><td class="layui-td-gray-2">文章标题</td>
+			<td>{$detail.title}</td><td class="layui-td-gray-2">关键字</td>
+			<td>{$detail.keywords}</td>
+		</tr><tr><td class="layui-td-gray-2">是否原创</td>
+			<td>
+				{eq name="$detail.original" value="1"}选项一{/eq}
+				{eq name="$detail.original" value="2"}选项二{/eq}
+			</td><td class="layui-td-gray-2">来源或作者</td>
+			<td>{$detail.origin}</td><td class="layui-td-gray-2">来源地址</td>
+			<td>{$detail.origin_url}</td>
+		</tr><tr><td class="layui-td-gray-2">阅读量</td>
+			<td>{$detail.read}</td><td class="layui-td-gray-2">文章属性</td>
+			<td>
+			{eq name="$detail.type" value="1"}选项一{/eq}
+			{eq name="$detail.type" value="2"}选项二{/eq}
+			</td><td class="layui-td-gray-2">是否首页显示</td>
+			<td>
+				{eq name="$detail.is_home" value="1"}选项一{/eq}
+				{eq name="$detail.is_home" value="2"}选项二{/eq}
+			</td>
+		</tr><tr><td class="layui-td-gray-2">排序</td>
+			<td>{$detail.sort}</td><td class="layui-td-gray-2">状态</td>
+			<td>
+				{eq name="$detail.status" value="1"}选项一{/eq}
+				{eq name="$detail.status" value="2"}选项二{/eq}
+			</td><td class="layui-td-gray-2">创建时间</td>
+			<td>{$detail.create_time}</td>
+		</tr><tr><td class="layui-td-gray-2">文章摘要</td>
+			<td colspan="5">{$detail.desc}</td>
+		</tr><tr><td class="layui-td-gray-2">缩略图</td>
+			<td colspan="5">
+				<img src="{$detail.thumb}" onerror="javascript:this.src='{__GOUGU__}/gougu/images/nonepic600x360.jpg';this.onerror=null;" width="100" style="width:200px; max-width:200px" />
+			</td>
+		</tr><tr><td class="layui-td-gray-2">文章内容</td>
+			<td colspan="5">
+				{$detail.content|raw}
+			</td>
+		</tr>
+	</table>
+</div>
+{/block}
+<!-- /主体 -->

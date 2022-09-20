@@ -1,0 +1,71 @@
+{extend name="common/base"/}
+<!-- 主体 -->
+{block name="body"}
+<div class="layui-form p-4">
+    <h3 class="pb-3">用户信息</h3>
+    <table class="layui-table layui-table-form">
+        <tr>
+            <td class="layui-td-gray">用户id</td>
+            <td>
+                {$user.job_no}
+            </td>
+            <td class="layui-td-gray">用户名</td>
+            <td>
+                {$user.name}
+            </td>
+            <td rowspan="4" class="layui-td-gray">照片</td>
+            <td rowspan="4" valign="top" style="width: 150px;">
+                <div class="layui-upload">
+                    {notempty name="$user.photo"}
+                    <img src="data:image/bmp;base64,{$user.photo}" width="150" height="150" style="max-width: 100%;"/>
+                    {/notempty}
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td class="layui-td-gray">创建时间</td>
+            <td>
+                {$user.create_time}
+            </td>
+            <td class="layui-td-gray">更新时间</td>
+            <td>
+                {$user.update_time}
+            </td>
+        </tr>
+        <tr>
+            <td class="layui-td-gray">真实姓名</td>
+            <td>
+                {$user.name}
+            </td>
+            <td class="layui-td-gray">下发状态</td>
+            <td>
+                {eq name="$user.download_status" value="1" }未下发{/eq}
+                {eq name="$user.download_status" value="0" }已下发{/eq}
+            </td>
+        </tr>
+        <tr>
+            <td class="layui-td-gray">密码</td>
+            <td>
+                {$user.password}
+            </td>
+            <td class="layui-td-gray">账号类型</td>
+            <td>
+                {eq name="$user.privilege" value="0" }普通用户{/eq}
+                {eq name="$user.privilege" value="1" }管理员{/eq}
+            </td>
+        </tr>
+        <tr>
+            <td class="layui-td-gray">用户有效期</td>
+            <td>
+                {$user.vaildStart} - {$user.vaildEnd}
+            </td>
+            <td class="layui-td-gray">使用照片注册人脸</td>
+            <td>
+                {eq name="$user.photoEnroll" value="0" }使用{/eq}
+                {eq name="$user.photoEnroll" value="1" }不使用{/eq}
+            </td>
+        </tr>
+    </table>
+</div>
+{/block}
+<!-- /主体 -->

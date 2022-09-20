@@ -1,0 +1,405 @@
+{extend name="common/base"/}
+{block name="style"}
+<style>
+	.upload-img {
+		width: 120px;
+		height: 90px;
+		overflow: hidden;
+		position: relative;
+		border: 1px solid #eee;
+		padding: 1px;
+		margin: 5px;
+		float: left;
+	}
+
+	.upload-close {position: absolute; top: 1px; right: 1px; }
+
+	.layui-upload-add {
+		position: relative;
+		margin:12px 0;
+		padding:16px 0;
+		font-size:14px;
+		box-sizing: border-box;
+		border: 1px solid #eee;
+		background-color: #fff;
+		text-align: center;
+		cursor: pointer;
+		color: #999;
+	}
+	.layui-upload-add .layui-icon{font-size:52px; color:#3c9cff}
+	.gallery-item{background-color:#fff; padding:12px 12px 0; margin:12px 0; box-sizing: border-box;border: 1px solid #eee;}
+	.img-filepath{max-width: 200px;max-height: 150px;}
+	.list-text{font-size:12px; padding:12px 12px 0 0;color:#969696;}
+	.list-text span{color:#646464;}
+	
+	.gougu-upload-files{background-color: #ffffff; border:1px solid #e4e7ed;color: #c0c4cc;cursor: not-allowed; padding:0 12px; box-sizing: border-box; display: inline-block; font-size: inherit; height: 38px; line-height: 35px; margin-right:8px; border-radius:2px;}
+	.gougu-upload-tips{color:#969696}
+</style>
+{/block}
+<!-- 主体 -->
+{block name="body"}
+<form class="layui-form p-3">
+<div class="layui-row layui-col-space12">
+	<div class="layui-col-md8">
+	<table class="layui-table layui-table-form">
+		<tr>
+			<td class="layui-td-gray">图集标题<font>*</font></td>
+			<td><input type="text" name="title" lay-verify="required" lay-reqText="请输入图集标题" placeholder="请输入图集标题" class="layui-input"></td>
+		</tr>
+		<tr>
+			<td class="layui-td-gray" style="vertical-align:top;">图集简介</td>
+			<td>
+				<textarea name="desc" placeholder="请输入图集简介，200字以内" class="layui-textarea"></textarea>
+			</td>
+		</tr>
+	</table>
+	
+	<div id="imgList"></div>
+	
+	<div class="layui-upload-add" style="width:100% background-color:#F5FAFF">
+		<i class="layui-icon"></i>
+		<p>添加图片</p>
+	</div>
+	
+	</div>
+	<div class="layui-col-md4">
+		<table class="layui-table layui-table-form">
+		<tr>
+			<td class="layui-td-gray">图集分类<font>*</font></td>
+			<td>
+				<select name="cate_id" lay-verify="required" lay-reqText="请选择图集分类">
+					<option value="">请选择图集分类</option>
+					{volist name=":set_recursion(get_gallery_cate())" id="v"}
+					<option value="{$v.id}">{$v.title}</option>
+					{/volist}
+				</select>
+			</td>
+		</tr>
+		<tr>
+			<td class="layui-td-gray">状态<font>*</font></td>
+			<td>
+				<input type="radio" name="status" value="1" title="正常" checked>
+				<input type="radio" name="status" value="0" title="下架">
+			</td>
+		</tr>
+		<tr>
+			<td class="layui-td-gray">关键字<font>*</font></td>
+			<td>
+				<input type="text" id="keyword_name" name="keyword_names" lay-verify="required" lay-reqText="请选择关键字"
+					placeholder="请选择关键字" class="layui-input" readonly>
+				<input type="hidden" id="keyword_id" name="keyword_ids">
+			</td>
+		</tr>
+		<tr>
+			<td class="layui-td-gray">封面图</td>
+			<td style="vertical-align:top">
+				<div class="layui-upload" style="text-align:center;">
+					<button type="button" class="layui-btn layui-btn-sm" id="uploadBtn">上传图集封面图(尺寸：640x360)</button>
+					<div class="layui-upload-list" id="demo1">
+						<img src="" width="100" style="width:200px;max-width:200px" />
+						<input type="hidden" name="thumb" value="">
+					</div>
+				</div>
+			</td>
+		</tr>
+		<tr>
+			<td class="layui-td-gray">作者/来源</td>
+			<td>
+				<input type="text" name="origin" class="layui-input" autocomplete="off" placeholder="请输入来源" value="">
+			</td>
+		</tr>
+		<tr>
+			<td class="layui-td-gray">来源链接</td>
+			<td>
+				<input type="text" name="origin_url" class="layui-input" autocomplete="off" placeholder="请输入来源链接" value="">
+			</td>
+		</tr>
+		<tr>
+			<td class="layui-td-gray">属性</td>
+			<td>
+				<select name="type">
+					<option value="">请选择属性</option>
+					<option value="1">精华</option>
+					<option value="2">热门</option>
+					<option value="3">推荐</option>
+				</select>
+			</td>
+		</tr>
+		<tr>
+			<td class="layui-td-gray">首页显示</td>
+			<td>
+				<input type="radio" name="is_home" value="1" title="是" checked>
+				<input type="radio" name="is_home" value="0" title="否">
+			</td>
+		</tr>
+		<tr>
+			<td class="layui-td-gray">排序</td>
+			<td>
+				<input type="text" name="sort" value="0" lay-verify="number" placeholder="请输入排序，数字" class="layui-input">
+			</td>
+		</tr>
+	</table>
+	<div class="py-3">
+		<input type="hidden" name="id" value="0">
+		<button class="layui-btn layui-btn-normal" lay-submit="" lay-filter="webform">立即提交</button>
+		<button type="reset" class="layui-btn layui-btn-primary">重置</button>
+		<button lay-event="back" class="layui-btn layui-btn-primary">关闭</button>
+	</div>
+	</div>
+</form>
+{/block}
+<!-- /主体 -->
+
+<!-- 脚本 -->
+{block name="script"}
+<script>
+	var moduleInit = ['tool', 'tagpicker'];
+	function gouguInit() {
+		var form = layui.form, tool = layui.tool,element = layui.element, tagspicker = layui.tagpicker, upload = layui.upload;
+		
+		var tags = new tagspicker({
+			'url': '/admin/api/get_keyword_cate',
+			'target': 'keyword_name',
+			'tag_ids': 'keyword_id',
+			'tag_tags': 'keyword_name',
+			'height': 500,
+			'isDiy': 1
+		});
+
+		//缩略图上传
+		var uploadInst = upload.render({
+			elem: '#uploadBtn'
+			, url: '/admin/api/upload'
+			, done: function (res) {
+				//如果上传失败
+				if (res.code == 1) {
+					return layer.msg('上传失败');
+				}
+				//上传成功
+				$('#demo1 input').attr('value', res.data.id);
+				$('#demo1 img').attr('src', res.data.filepath);
+			}
+		});
+
+		//监听返回
+		$('body').on('click', '[lay-event="back"]', function () {
+			tool.tabClose();
+			return false;
+		});
+
+		
+		//监听提交
+		form.on('submit(webform)', function (data) {
+			let callback = function (e) {
+				if (e.code == 0) {
+					tool.tabRefresh(94);
+					layer.confirm('保存成功,关闭当前页面吗?', { icon: 3, title: '提示' }, function (index) {
+						tool.tabClose();
+					});
+				} else {
+					layer.msg(e.msg);
+				}
+			}
+			tool.post("/admin/gallery/add", data.field, callback);
+			return false;
+		});
+		
+		$('.layui-upload-add').on('click',function(){
+			uploadImg(0);		
+		})
+		
+		function uploadImg(id){
+			layer.open({
+				'title':'上传资源',
+				'type':1,
+				'area': ['640px', '360px'],
+				'content':`<div class="layui-form p-3">
+						<div class="layui-form-item">
+							<label class="layui-form-label">来源：</label>
+							<div class="layui-input-block">
+								<input type="radio" name="uploadtype" lay-filter="type" value="1" title="本地上传" checked>
+								<input type="radio" name="uploadtype" lay-filter="type" value="2" title="网络图片">
+							</div>
+						</div>
+						<div id="uploadType1">
+							<div class="layui-form-item">
+								<label class="layui-form-label">文件：</label>
+								<div class="layui-input-block">
+									<span class="gougu-upload-files">.jpg、.jpeg、.gif、.png、.bmp</span><button type="button" class="layui-btn layui-btn-normal" id="uploadSelect">选择文件</button>
+								</div>
+							</div>
+							<div class="layui-form-item">
+								<label class="layui-form-label"></label>
+								<div class="layui-input-block">
+									<span class="gougu-upload-tips">只能上传 .jpg、.jpeg、.gif、.png、.bmp 文件</span>
+								</div>
+							</div>
+							<div class="layui-form-item">
+								<label class="layui-form-label"></label>
+								<div class="layui-input-block" id="gougu-upload-choosed"></div>
+							</div>
+							<div class="layui-progress upload-progress" lay-showpercent="yes" lay-filter="upload-progress" style="margin-bottom:12px; margin-left:90px; width:320px; display:none;">
+							  <div class="layui-progress-bar layui-bg-blue" lay-percent=""><span class="layui-progress-text"></span></div>
+							</div>
+							<div class="layui-form-item layui-form-item-sm">
+								<label class="layui-form-label"></label>
+								<div class="layui-input-block">
+									<button type="button" class="layui-btn" id="uploadAjax">开始上传</button>
+								</div>
+							</div>	
+						</div>
+						<div id="uploadType2" style="display:none; width:480px;">
+							<div class="layui-form-item">
+								<label class="layui-form-label">URL地址：</label>
+								<div class="layui-input-block">
+									<input type="text" name="img_url" placeholder="" autocomplete="off" class="layui-input">
+								</div>
+							</div>			
+							<div class="layui-form-item">
+								<label class="layui-form-label">图片名称：</label>
+								<div class="layui-input-block">
+									<input type="text" name="img_name" placeholder="" autocomplete="off" class="layui-input">
+								</div>
+							</div>
+							<div class="layui-form-item layui-form-item-sm">
+								<label class="layui-form-label"></label>
+								<div class="layui-input-block">
+									<span class="layui-btn" id="saveAjax">确定保存</span>
+								</div>
+							</div>
+						</div>	 
+				</div>`,
+				success: function(layero, index){
+					form.render();
+					
+					form.on('radio(type)', function(data){
+					    if(data.value==1){
+							$('#uploadType1').show();
+							$('#uploadType2').hide();
+						}
+						else{
+							$('#uploadType1').hide();
+							$('#uploadType2').show();
+						}
+					});  
+					
+					//选文件
+					upload.render({
+						elem: '#uploadSelect'
+						,url: '/admin/api/upload'
+						,auto: false
+						,accept: 'file' //普通文件
+						,exts: 'png|jpg|gif|jpeg|bmp' //只允许上传文件格式
+						,bindAction: '#uploadAjax'
+						,choose: function(obj){
+							obj.preview(function(index, file, result){
+								$('#gougu-upload-choosed').html('已选择：'+file.name);
+							});
+						}
+						,before: function(obj){
+							$('.upload-progress').show();
+							element.progress('upload-progress', '0%');
+						}
+						,progress: function(n, elem, e){
+							element.progress('upload-progress', n + '%');
+						}
+						,done: function(res){
+							layer.msg(res.msg);
+							if(res.code==0){
+								appendImg(res.data,id);
+								layer.close(index);
+							}							
+						}
+					});
+					
+					$('#saveAjax').on('click',function(){
+						let url=$('[name="img_url"]').val();
+						let name=$('[name="img_name"]').val();
+						if(url == ''){
+							layer.msg('请输入图片URL');
+							return false;
+						}
+						if(name == ''){
+							layer.msg('请输入图片名称');
+							return false;
+						}
+						let res={
+							filepath:url,
+							name:name,
+							id:0
+						}
+						layer.close(index);
+						appendImg(res,id);
+					})
+				}
+			});	
+		}
+		
+		function appendImg(res,id){
+			if(id == 0){
+				id = Date.now();
+				$('#imgList').append(`<div class="layui-row gallery-item" id="item_${id}">
+					<div class="layui-col-md3">
+						<img src="${res.filepath}" class="img-filepath">
+						<p class="list-text">原名称：<span class="img-name">${res.name}</span></p>
+					</div>
+					<div class="layui-col-md9">
+						<div class="layui-form-item layui-form-item-sm">
+							<label class="layui-form-label">标题：</label>
+							<div class="layui-input-block">
+								<input type="text" name="img_title[]" placeholder="" autocomplete="off" class="layui-input">
+							</div>
+						</div>
+						<div class="layui-form-item layui-form-item-sm">
+							<label class="layui-form-label">摘要：</label>
+							<div class="layui-input-block">
+								<textarea name="img_desc[]" placeholder="" class="layui-textarea"></textarea>
+							</div>
+						</div>
+						<div class="layui-row layui-col-space12 layui-form-item layui-form-item-sm">
+							<div class="layui-col-lg6">
+								<label class="layui-form-label">链接：</label>
+								<div class="layui-input-block">
+									<input type="text" name="img_link[]" placeholder="" autocomplete="off" class="layui-input">
+								</div>
+							</div>
+							<div class="layui-col-lg3">
+								<label class="layui-form-label">排序：</label>
+								<div class="layui-input-block">
+									<input type="text" name="img_sort[]" placeholder="" autocomplete="off" class="layui-input">
+								</div>
+							</div>
+							<div class="layui-col-lg3" style="text-align:right;">
+								<div class="layui-btn-group">
+									<input type="hidden" name="img_file[]" class="img-file-input" value="${res.id}">
+									<input type="hidden" name="img_filepath[]" class="img-filepath-input" value="${res.filepath}">
+									<input type="hidden" name="img_name[]" class="img-name-input" value="${res.name}">
+									<span class="layui-btn layui-btn-sm item-edit" title="编辑" data-id="${id}">编辑</span>
+									<span class="layui-btn layui-btn-sm layui-btn-danger item-del" data-id="${id}" title="删除">删除</span>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>`);
+			}
+			else{
+				$('#item_'+id).find('.img-filepath').attr('src',res.filepath);
+				$('#item_'+id).find('.img-name').html(res.name);
+				$('#item_'+id).find('.img-filepath-input').val(res.filepath);
+				$('#item_'+id).find('.img-name-input').val(res.name);
+				$('#item_'+id).find('.img-file-input').val(res.id);
+			}
+		}
+		$('#imgList').on('click','.item-edit',function(){
+			let id=$(this).data('id');
+			uploadImg(id);
+		});
+		$('#imgList').on('click','.item-del',function(){
+			let id=$(this).data('id');
+			$('#item_'+id).remove();
+		});
+	
+	}
+</script>
+{/block}
+<!-- /脚本 -->

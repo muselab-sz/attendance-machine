@@ -1,0 +1,263 @@
+{extend name="common/base"/}
+<!-- 主体 -->
+{block name="body"}
+<div class="p-3">
+    <form class="layui-form gg-form-bar border-t border-x">
+        <div class="layui-input-inline" style="width:300px;">
+            <input type="text" name="keywords" placeholder="工号/用户名" class="layui-input" autocomplete="off"/>
+        </div>
+        <button class="layui-btn layui-btn-normal" lay-submit="" lay-filter="webform">搜索</button>
+    </form>
+    <table class="layui-hide" id="user" lay-filter="user"></table>
+</div>
+<script type="text/html" id="status">
+    <i class="layui-icon {{#  if(d.status == 1){ }}layui-icon-ok{{#  } else { }}layui-icon-close{{#  } }}"></i>
+</script>
+<script type="text/html" id="toolbarDemo">
+    <div class="layui-btn-container">
+        <button class="layui-btn layui-btn-sm addNew" type="button">+ 添加用户</button>
+    </div>
+</script>
+{/block}
+<!-- /主体 -->
+
+<!-- 脚本 -->
+{block name="script"}
+<script>
+    const moduleInit = ['tool'];
+
+    function gouguInit() {
+        var tool = layui.tool, table = layui.table, laydate = layui.laydate, form = layui.form;
+        laydate.render({
+            elem: '#start_time',
+            type: 'date'
+        });
+
+        laydate.render({
+            elem: '#end_time',
+            type: 'date'
+        });
+
+        layui.pageTable = table.render({
+            elem: '#user',
+            title: '用户列表',
+            toolbar: '#toolbarDemo',
+            url: '/admin/user/index', //数据接口
+            page: true, //开启分页
+            limit: 20,
+            cols: [
+                [ //表头
+                    {
+                        field: 'job_no',
+                        title: 'ID（工号）',
+                        align: 'center',
+                    }, {
+                    field: 'photo',
+                    title: '头像',
+                    align: 'center',
+                    templet: function (d) {
+                        var photo = '-';
+                        if (d.photo) {
+                            photo = '<img src="data:image/bmp;base64,' + d.photo + '" width="28" height="28"/>';
+                        }
+                        return photo;
+                    }
+                }, {
+                    field: 'name',
+                    title: '用户名',
+                    align: 'center',
+                }, {
+                    field: 'privilege',
+                    title: '账号类型',
+                    align: 'center',
+                    templet: function (d) {
+                        var html = '-';
+                        if (d.privilege == 0) {
+                            html = '普通用户'
+                        } else if (d.privilege == 1) {
+                            html = '管理员'
+                        }
+                        return html;
+                    }
+                }, {
+                    field: 'password',
+                    title: '密码',
+                    align: 'center',
+                    width: 100
+                }, {
+                    field: 'download_status',
+                    title: '下发状态',
+                    align: 'center',
+                    templet: function (d) {
+                        var html = '-';
+                        if (d.download_status == 0) {
+                            html = '未下发'
+                        } else if (d.download_status == 1) {
+                            html = '已下发'
+                        }
+                        return html;
+                    }
+                }, {
+                    field: 'create_time',
+                    title: '创建时间',
+                    align: 'center',
+                }, {
+                    field: 'update_time',
+                    title: '更新时间',
+                    align: 'center',
+                }, {
+                    field: 'right',
+                    fixed: 'right',
+                    title: '操作',
+                    align: 'center',
+                    width: 136,
+                    templet: function (d) {
+                        let btn1 = '<span class="layui-btn layui-btn-xs layui-btn-normal" lay-event="view">详情</span><span class="layui-btn layui-btn-xs" lay-event="edit">编辑</span>';
+                        let btn2 = '<span class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</span>';
+                        if (d.status == 1) {
+                            return '<div class="layui-btn-group">' + btn1 + btn2 + '</div>';
+                        } else {
+                            return '<div class="layui-btn-group">' + btn1 + '</div>';
+                        }
+                    }
+                }
+                ]
+            ]
+        });
+
+        //监听行工具事件
+        table.on('tool(user)', function (obj) {
+            var data = obj.data;
+            if (obj.event === 'view') {
+                tool.side('/admin/user/view?id=' + data.id);
+                return;
+            } else if (obj.event === 'edit') {
+                tool.side('/admin/user/edit?id=' + data.id);
+                return;
+            } else if (obj.event === 'del') {
+                layer.confirm('您确定要删除该用户', {
+                    icon: 3,
+                    title: '提示'
+                }, function (index) {
+                    let callback = function (e) {
+                        layer.msg(e.msg);
+                        if (e.code == 0) {
+                            layer.close(index);
+                            layui.pageTable.reload()
+                        }
+                    }
+                    tool.post("/admin/user/disable", {id: data.id, status: 0}, callback);
+                    layer.close(index);
+                });
+            } else if (obj.event === 'open') {
+                layer.confirm('您确定要启用该用户', {
+                    icon: 3,
+                    title: '提示'
+                }, function (index) {
+                    let callback = function (e) {
+                        layer.msg(e.msg);
+                        if (e.code == 0) {
+                            layer.close(index);
+                            layui.pageTable.reload()
+                        }
+                    }
+                    tool.post("/admin/user/disable", {id: data.id, status: 1}, callback);
+                    layer.close(index);
+                });
+            }
+        });
+
+        //监听搜索提交
+        form.on('submit(webform)', function (data) {
+            layui.pageTable.reload({
+                where: {
+                    keywords: data.field.keywords,
+                },
+                page: {
+                    curr: 1
+                }
+            });
+            return false;
+        });
+
+        $('body').on('click', '.addNew', function () {
+            addExpense(0, '', '', '', '');
+        });
+
+        function addExpense(id, job_no, name, privilege, password) {
+            var biaoti = '新增用户';
+            if (id > 0) {
+                biaoti = '编辑用户';
+            }
+
+            layer.open({
+                type: 1
+                , title: biaoti
+                , area: '512px;'
+                , id: 'LAY_module' //设定一个id，防止重复弹出
+                , btn: ['确定', '取消']
+                , btnAlign: 'c'
+                , content: '<div style="padding-top:15px;">\
+								<div class="layui-form-item">\
+								  <label class="layui-form-label">用户id</label>\
+								  <div class="layui-input-inline" style="width:360px;">\
+									<input type="hidden" name="id" value="' + id + '">\
+									<input type="number" name="job_no" autocomplete="off" value="' + job_no + '" placeholder="请输入用户id" class="layui-input">\
+								  </div>\
+								</div>\
+								<div class="layui-form-item">\
+								  <label class="layui-form-label">用户名</label>\
+								  <div class="layui-input-inline" style="width:360px;">\
+									<input type="text" name="name" autocomplete="off" value="' + name + '" placeholder="请输入用户名" class="layui-input">\
+								  </div>\
+								</div>\
+								<div class="layui-form-item">\
+                                    <label class="layui-form-label">账号类型</label>\
+                                    <div class="layui-input-inline" style="width:360px;">\
+                                        <select name="privilege" lay-verify="required" class="layui-input">\
+                                            <option value="0">普通用户</option>\
+                                            <option value="1">管理员</option>\
+                                        </select>\
+                                    </div>\
+                                </div>\
+								\<div class="layui-form-item">\
+								  <label class="layui-form-label">请输入密码</label>\
+								  <div class="layui-input-inline" style="width:360px;">\
+									<input type="text" name="password" autocomplete="off" value="' + password + '" placeholder="请输入密码" class="layui-input">\
+								  </div>\
+								</div>\
+							  </div>'
+                , yes: function (index) {
+                    let id = $('#LAY_module').find('[name="id"]').val();
+                    let job_no = $('#LAY_module').find('[name="job_no"]').val();
+                    let name = $('#LAY_module').find('[name="name"]').val();
+                    let privilege = $('#LAY_module').find('[name="privilege"]').val();
+                    let password = $('#LAY_module').find('[name="password"]').val();
+                    let callback = function (e) {
+                        layer.msg(e.msg);
+                        if (e.code == 0) {
+                            if (e.code == 0) {
+                                layer.close(index);
+                                layui.pageTable.reload();
+                            }
+                        }
+                    }
+                    tool.post("/admin/user/edit", {
+                        id: id,
+                        job_no: job_no,
+                        name: name,
+                        privilege: privilege,
+                        password: password
+                    }, callback);
+                    return false;
+                }
+                , btn2: function () {
+                    layer.closeAll();
+                }
+            });
+        }
+    }
+
+</script>
+{/block}
+<!-- /脚本 -->

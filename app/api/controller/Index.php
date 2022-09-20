@@ -1,0 +1,421 @@
+<?php
+/**
+ * 考勤机接口
+ */
+declare (strict_types=1);
+
+namespace app\api\controller;
+
+use app\api\BaseController;
+use app\api\middleware\Auth;
+use Exception;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
+use think\facade\Cache;
+use think\facade\Db;
+use think\facade\Log;
+use think\facade\Request;
+
+class Index extends BaseController
+{
+    /**
+     * 控制器中间件 [登录、注册 不需要鉴权]
+     * @var array
+     */
+    protected $middleware = [
+        Auth::class => ['except' => ['index', 'reg', 'login']]
+    ];
+
+    /**
+     * @api {post} /index/index API页面
+     * @apiDescription  返回首页信息
+     */
+    public function index()
+    {
+        $header = Request::header();
+
+        // 表示机器向服务器询问有没有对自己发送的指令,需求代码
+        $requestCode = $header['request-code'];
+        // 机器识别号
+        $devId = $header['dev-id'];
+        // 用于区分设备类型
+        $devModel = $header['dev-model'];
+        // 任务id
+        $transId = $header['trans-id'];
+
+        // 请求体数据
+        $req = $this->request->post();
+        Log::record('Req====================' . json_encode($req));
+
+        // 判断设备是否存在，并写入
+        $device = Db::name('DeviceList')
+            ->where('dev_id', $devId)
+            ->find();
+        if (!$device) {
+            Db::name('DeviceList')->insert([
+                'dev_id' => $devId,
+                'dev_model' => $devModel,
+                'create_time' => date('Y-m-d H:i:s', time()),
+                'update_time' => date('Y-m-d H:i:s', time()),
+            ]);
+        }
+
+        $body = [];
+        $status = 'OK';
+        $cmdCode = '';
+
+        // 处理上报数据、 // 设备上传用户指纹人脸照片数据
+        if ($transId == 'RTEnrollData' && $requestCode == 'realtime_enroll_data') {
+            if (!isset($req['userId']) || empty($req['userId'])) {
+                Log::record('Req====================' . '上报数据userId为空');
+                return $this->deviceReturn($body, ['trans_id' => 100, 'response_code' => $status, 'cmd_code' => $cmdCode, 'Content-Length' => 0]);
+            }
+            $updateData = [];
+            if (isset($req['face']) && !empty($req['face'])) {
+                $updateData['face'] = $req['face'];
+            }
+            if (isset($req['name']) && !empty($req['name'])) {
+                $updateData['name'] = $req['name'];
+            }
+            if (isset($req['photo']) && !empty($req['photo'])) {
+                $updateData['photo'] = $req['photo'];
+            }
+            if (isset($req['privilege']) && !empty($req['privilege'])) {
+                $updateData['privilege'] = $req['privilege'];
+            }
+            if (isset($req['privilege']) && !empty($req['privilege'])) {
+                $updateData['password'] = $req['pwd'];
+            }
+            if (isset($req['vaildEnd']) && !empty($req['vaildEnd'])) {
+                $updateData['vaildEnd'] = $req['vaildEnd'];
+            }
+            if (isset($req['vaildStart']) && !empty($req['vaildStart'])) {
+                $updateData['vaildStart'] = $req['vaildStart'];
+            }
+            if (isset($req['fps']) && !empty($req['fps'])) {
+                $updateData['fps'] = json_encode($req['fps']);
+            }
+            if (isset($req['palm']) && !empty($req['palm'])) {
+                $updateData['palm'] = json_encode($req['palm']);
+            }
+            $updateData['update_time'] = date('Y-m-d H:i:s', time());
+            // 更新用户信息并更新设备用户下发状态
+            Db::name('User')
+                ->where('job_no', $req['userId'])
+                ->update($updateData);
+            if (isset($devId) && !empty($devId)) {
+                Db::name('DeviceList')
+                    ->where('dev_id', $devId)
+                    ->update([
+                        'is_sync' => '0',
+                        'update_time' => date('Y-m-d H:i:s', time()),
+                    ]);
+                $count = Db::name('DeviceList')
+                    ->where('is_sync', '1')
+                    ->count();
+                if ($count == 0) {
+                    Db::name('User')
+                        ->where('job_no', $req['userId'])
+                        ->update([
+                            'download_status' => '1',
+                            'update_time' => date('Y-m-d H:i:s', time()),
+                        ]);
+                }
+            }
+            return $this->deviceReturn($body, ['trans_id' => 100, 'response_code' => 'OK']);
+        }
+
+        // 设备上传实时打卡记录
+        if ($transId == 'RTLogSend' && $requestCode == 'realtime_glog') {
+            Db::name('SignRecord')
+                ->insert([
+                    'ioMode' => $req['ioMode'],
+                    'time' => $req['time'],
+                    'userId' => $req['userId'],
+                    'verifyMode' => $req['verifyMode'],
+                    'ori_data' => json_encode($req),
+                    'dev_model' => $devModel,
+                    'dev_id' => $devId,
+                    'create_time' => date('Y-m-d H:i:s', time()),
+                    'update_time' => date('Y-m-d H:i:s', time()),
+                ]);
+            return $this->deviceReturn($body, ['trans_id' => $transId, 'response_code' => 'OK']);
+        }
+
+        // 指定只执行一次
+        if (Cache::get('once_' . $transId)) {
+            $transId = '';
+            $cmdCode = '';
+            $status = 'ERROR_NO_CMD';
+            return $this->deviceReturn($body, ['trans_id' => $transId, 'response_code' => $status, 'cmd_code' => $cmdCode, 'Content-Length' => 0]);
+        }
+
+        $transId = rand(100, 999);
+
+        // 设备请求接收指令
+        if ($requestCode == 'receive_cmd') {
+
+            // 同步时间
+            if (!empty($req['time'])) {
+                if (abs(strtotime($req['time']) - time()) > 60) {//比对设备与服务器时间差决定是否要同步时间
+                    $cmdCode = 'SET_TIME';
+                    $body = ['syncTime' => date('YmdHis')];
+                    $length = strlen(json_encode($body, JSON_UNESCAPED_UNICODE));
+                    return $this->deviceReturn($body, ['trans_id' => $transId, 'response_code' => $status, 'cmd_code' => $cmdCode, 'Content-Length' => $length]);
+                }
+            }
+
+            Cache::set('once_' . $transId, '1', 20);
+
+            // 如果设备存在未同步状态，先发送用户数据
+            $deviceExec = Db::name('DeviceUserSync')
+                ->where('status', '0')
+                ->where('dev_id', $devId)
+                ->find();
+            // 没有更新用户返回空指令
+            if (!$deviceExec) {
+                $transId = '';
+                $cmdCode = '';
+                $status = 'ERROR_NO_CMD';
+                return $this->deviceReturn($body, ['trans_id' => $transId, 'response_code' => $status, 'cmd_code' => $cmdCode, 'Content-Length' => 0]);
+            }
+
+            $cmdCode = 'SET_USER_INFO';
+            // 获取用户列表
+            $userList = Db::name('User')
+                ->fieldRaw("job_no as userId,privilege,name,password as pwd, 1 as `update`,vaildStart,vaildEnd")
+                ->select();
+            if ($userList) {
+                $body['users'] = $userList->toArray();
+                foreach ($body['users'] as $key => $val) {
+                    $body['users'][$key]['userId'] = strval($val['userId']);
+                    $body['users'][$key]['privilege'] = intval($val['privilege']);
+                }
+            }
+            /*$body = [
+                'users' => [
+                    [
+                        'userId' => '123456',
+                        'privilege' => 1,
+                        'name' => 'Admin1',
+                        'pwd' => '123456',
+                        "update" => 1,
+                    ],
+                    [
+                        'userId' => '123457',
+                        'privilege' => 0,
+                        'name' => 'zhang1',
+                        'pwd' => '123456',
+                        "update" => 1,
+                    ]
+                ]
+            ];*/
+
+            $length = 0;
+            if ($body) {
+                $length = strlen(json_encode($body, JSON_UNESCAPED_UNICODE));
+            }
+            return $this->deviceReturn($body, ['trans_id' => $deviceExec['trans_id'], 'response_code' => $status, 'cmd_code' => $cmdCode, 'Content-Length' => $length]);
+
+
+            //$cmdCode = 'GET_DEVICE_INFO';//ok
+            //$cmdCode = 'GET_DEVICE_SETTING';//ok
+            //$cmdCode = 'GET_LOG_DATA';//ok
+            //$cmdCode = 'CLEAR_LOG_DATA';//ok
+            //$body = [];
+            //$body = ['newLog'=>0,'beginTime'=>'20210101','endTime'=>'20210904','clearMark'=>0];
+            //$cmdCode = 'GET_USER_INFO';//ok
+            //$body = '{}';json_encode(array('usersId'=>array('100001')));
+            //$cmdCode = 'GET_USER_ID_LIST';//ok
+            //$cmdCode = 'DELETE_USER';//bug
+            //$body = json_encode(array('usersCount'=>2,'usersId'=>array('123','456456')));
+            //$cmdCode = 'RESET_FK';//ok
+            //$cmdCode = 'CLEAR_MANAGER';//ok
+            //$cmdCode = 'SET_DEVICE_SETTING';//ok
+            //$body = json_encode(array('devName'=>'BH3','interval'=>'10'));
+            //$cmdCode = 'RESET_ENROLL_MARK';//ok
+            //$cmdCode = 'RESET_LOG_MARK';//ok
+            //$body = json_encode(array('beginTime'=>'20200101','endTime'=>'20211111'));
+            //$cmdCode = 'RESET_DEVICE';//ok
+            /*if ($userid && $photobase64) {
+                $cmdCode = 'SET_USER_INFO';
+                $body = json_encode(array('users' => array(array('userId' => $userid, 'name' => $userid, 'photoEnroll' => 1, 'privilege' => 0, 'photo' => $photobase64))));
+                //$body = json_encode(array('users'=>array(array('userId'=>$userid,'name'=>$userid,'privilege'=>0,'pwd'=>'123456'))));
+            }*/
+
+        } else {
+            if ($requestCode == 'send_cmd_result') { // 设备上传指令执行结果
+                $transId = $header['trans-id'];
+                $cmdReturnCode = $header['cmd-return-code'];
+                if ($cmdReturnCode == 'OK') {
+                    Db::name('DeviceUserSync')
+                        ->where('dev_id', $devId)
+                        ->where('trans_id', $transId)
+                        ->update([
+                            'status' => '1'
+                        ]);
+                    // 查询当前设备还有没有任务
+                    $deviceProcess = Db::name('DeviceUserSync')
+                        ->where('status', '0')
+                        ->where('dev_id', $devId)
+                        ->count();
+                    if ($deviceProcess == 0) {
+                        // 没有任务时把设备下发标记完成
+                        Db::name('DeviceList')
+                            ->where('dev_id', $devId)
+                            ->update([
+                                'is_sync' => '0'
+                            ]);
+                        // 查询还有没有这个任务的其他设备未同步
+                        $transOther = Db::name('DeviceUserSync')
+                            ->where('status', '0')
+                            ->where('trans_id', $transId)
+                            ->count();
+                        if ($transOther == 0) {
+                            // 没有任务是标记用户已完成全设备下发
+                            $transUserId = Db::name('DeviceUserSync')
+                                ->where('trans_id', $transId)
+                                ->field('job_no')
+                                ->find();
+                            if ($transUserId) {
+                                // 更新用户已下发状态
+                                Db::name('User')
+                                    ->where('job_no', $transUserId['job_no'])
+                                    ->update([
+                                        'download_status' => '1'
+                                    ]);
+                            }
+                        }
+                    }
+                }
+
+                return $this->deviceReturn($body, ['trans_id' => $transId, 'response_code' => 'OK']);
+            }
+            return $this->deviceReturn($body, ['trans_id' => $transId, 'response_code' => 'OK']);
+        }
+    }
+
+    /**
+     * @param $user_id
+     * @return string
+     */
+    public function getToken($user_id)
+    {
+        $time = time(); //当前时间
+        $conf = $this->jwt_conf;
+        $token = [
+            'iss' => $conf['iss'], //签发者 可选
+            'aud' => $conf['aud'], //接收该JWT的一方，可选
+            'iat' => $time, //签发时间
+            'nbf' => $time - 1, //(Not Before)：某个时间点后才能访问，比如设置time+30，表示当前时间30秒后才能使用
+            'exp' => $time + $conf['exptime'], //过期时间,这里设置2个小时
+            'data' => [
+                //自定义信息，不要定义敏感信息
+                'userid' => $user_id,
+            ]
+        ];
+        return JWT::encode($token, $conf['secrect'], 'HS256'); //输出Token  默认'HS256'
+    }
+
+    /**
+     * @param $token
+     */
+    public static function checkToken($token)
+    {
+        try {
+            JWT::$leeway = 60;//当前时间减去60，把时间留点余地
+            $decoded = JWT::decode($token, self::$config['secrect'], ['HS256']); //HS256方式，这里要和签发的时候对应
+            return (array)$decoded;
+        } catch (\Firebase\JWT\SignatureInvalidException $e) {  //签名不正确
+            return json(['code' => 403, 'msg' => '签名错误']);
+        } catch (\Firebase\JWT\BeforeValidException $e) {  // 签名在某个时间点之后才能用
+            return json(['code' => 401, 'msg' => 'token失效']);
+        } catch (\Firebase\JWT\ExpiredException $e) {  // token过期
+            return json(['code' => 401, 'msg' => 'token已过期']);
+        } catch (Exception $e) {  //其他错误
+            return json(['code' => 404, 'msg' => '非法请求']);
+        } catch (\UnexpectedValueException $e) {  //其他错误
+            return json(['code' => 404, 'msg' => '非法请求']);
+        } catch (\DomainException $e) {  //其他错误
+            return json(['code' => 404, 'msg' => '非法请求']);
+        }
+
+    }
+
+    /**
+     * @api {post} /index/login 会员登录
+     * @apiDescription 系统登录接口，返回 token 用于操作需验证身份的接口
+     * @apiParam (请求参数：) {string}             username 登录用户名
+     * @apiParam (请求参数：) {string}             password 登录密码
+     * @apiParam (响应字段：) {string}             token    Token
+     * @apiSuccessExample {json} 成功示例
+     * {"code":0,"msg":"登录成功","time":1627374739,"data":{"token":"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZ291Z3VjbXMuY29tIiwiYXVkIjoiZ291Z3VjbXMiLCJpYXQiOjE2MjczNzQ3MzksImV4cCI6MTYyNzM3ODMzOSwidWlkIjoxfQ.gjYMtCIwKKY7AalFTlwB2ZVWULxiQpsGvrz5I5t2qTs"}}
+     * @apiErrorExample {json} 失败示例
+     * {"code":1,"msg":"帐号或密码错误","time":1627374820,"data":[]}
+     */
+    public function login()
+    {
+        $param = get_params();
+        if (empty($param['username']) || empty($param['password'])) {
+            $this->apiError('参数错误');
+        }
+        // 校验用户名密码
+        $user = Db::name('User')->where(['username' => $param['username']])->find();
+        if (empty($user)) {
+            $this->apiError('帐号或密码错误');
+        }
+        $param['pwd'] = set_password($param['password'], $user['salt']);
+        if ($param['pwd'] !== $user['password']) {
+            $this->apiError('帐号或密码错误');
+        }
+        if ($user['status'] == -1) {
+            $this->apiError('该用户禁止登录,请于平台联系');
+        }
+        $data = [
+            'last_login_time' => time(),
+            'last_login_ip' => request()->ip(),
+            'login_num' => $user['login_num'] + 1,
+        ];
+        $res = Db::name('user')->where(['id' => $user['id']])->update($data);
+        if ($res) {
+            $token = self::getToken($user['id']);
+            add_user_log('api', '登录');
+            $this->apiSuccess('登录成功', ['token' => $token]);
+        }
+    }
+
+    /**
+     * @api {post} /index/reg 会员注册
+     * @apiDescription  系统注册接口，返回是否成功的提示，需再次登录
+     * @apiParam (请求参数：) {string}             username 用户名
+     * @apiParam (请求参数：) {string}             password 密码
+     * @apiSuccessExample {json} 成功示例
+     * {"code":0,"msg":"注册成功","time":1627375117,"data":[]}
+     * @apiErrorExample {json} 失败示例
+     * {"code":1,"msg":"该账户已经存在","time":1627374899,"data":[]}
+     */
+    public function reg()
+    {
+        $param = get_params();
+        if (empty($param['username']) || empty($param['pwd'])) {
+            $this->apiError('参数错误');
+        }
+        $user = Db::name('user')->where(['username' => $param['username']])->find();
+        if (!empty($user)) {
+            $this->apiError('该账户已经存在');
+        }
+        $param['salt'] = set_salt(20);
+        $param['password'] = set_password($param['pwd'], $param['salt']);
+        $param['register_time'] = time();
+        $param['headimgurl'] = '/static/admin/images/icon.png';
+        $param['register_ip'] = request()->ip();
+        $char = mb_substr($param['username'], 0, 1, 'utf-8');
+        $uid = Db::name('User')->strict(false)->field(true)->insertGetId($param);
+        if ($uid) {
+            add_user_log('api', '注册');
+            $this->apiSuccess('注册成功,请登录');
+        } else {
+            $this->apiError('注册失败');
+        }
+    }
+}

@@ -1,0 +1,126 @@
+{extend name="common/base"/}
+<!-- 主体 -->
+{block name="body"}
+<div class="p-3">
+    <form class="layui-form gg-form-bar border-t border-x">
+        <div class="layui-input-inline" style="width: 320px;">
+            <input type="text" name="keywords" placeholder="登录账户/用户名/手机号码" class="layui-input" autocomplete="off"/>
+        </div>
+        <button class="layui-btn layui-btn-normal" lay-submit="" lay-filter="webform">提交搜索</button>
+    </form>
+    <table class="layui-hide" id="admin" lay-filter="admin"></table>
+</div>
+
+<script type="text/html" id="thumb">
+    <img src="{{d.thumb}}" width="30" height="30"/>
+</script>
+<script type="text/html" id="status">
+    <i class="layui-icon {{#  if(d.status == 1){ }}layui-icon-ok{{#  } else { }}layui-icon-close{{#  } }}"></i>
+</script>
+<script type="text/html" id="toolbarDemo">
+    <div class="layui-btn-container" style="display: none;">
+        <span class="layui-btn layui-btn-sm add-user">+ 添加管理员</span>
+    </div>
+</script>
+<!--<script type="text/html" id="barDemo">
+    <div class="layui-btn-group">
+        <span style="display: none;" class="layui-btn layui-btn-xs layui-btn-normal" lay-event="view">详情</span>
+        <span style="display: none;" class="layui-btn layui-btn-xs" lay-event="edit">编辑</span>
+        <span style="display: none;" class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</span></div>
+</script>-->
+
+{/block}
+<!-- /主体 -->
+
+<!-- 脚本 -->
+{block name="script"}
+<script>
+    const moduleInit = ['tool'];
+
+    function gouguInit() {
+        var table = layui.table, tool = layui.tool, form = layui.form;
+        layui.pageTable = table.render({
+            elem: '#admin',
+            title: '管理员列表',
+            //toolbar: '#toolbarDemo',
+            url: '/admin/admin/index', //数据接口
+            page: true, //开启分页
+            limit: 20,
+            cols: [
+                [
+                    {
+                        field: 'id',
+                        title: 'ID号',
+                        align: 'center',
+                    }, {
+                    field: 'username',
+                    title: '登录账号',
+                }, {
+                    field: 'nickname',
+                    title: '用户名',
+                }, {
+                    field: 'login_num',
+                    title: '累计登录',
+                    align: 'center',
+                }, {
+                    field: 'last_login_time',
+                    title: '最后登录时间',
+                    align: 'center',
+                }, {
+                    field: 'last_login_ip',
+                    title: '最后登录IP',
+                }
+                ]
+            ]
+        });
+        //表头工具栏事件
+       /* $('body').on('click', '.add-user', function () {
+            tool.side("/admin/admin/add");
+            return;
+        });*/
+        //监听行工具事件
+        /*table.on('tool(admin)', function (obj) {
+            var data = obj.data;
+            if (obj.event === 'view') {
+                tool.side('/admin/admin/view?id=' + data.id);
+                return;
+            } else if (obj.event === 'edit') {
+                tool.side('/admin/admin/add?id=' + data.id);
+                return;
+            } else if (obj.event === 'del') {
+                if (data.id == 1) {
+                    layer.msg('超级管理员不能删除');
+                    return;
+                }
+                layer.confirm('您确定要删除该账户', {
+                    icon: 3,
+                    title: '提示'
+                }, function (index) {
+                    let callback = function (e) {
+                        layer.msg(e.msg);
+                        if (e.code == 0) {
+                            obj.del();
+                        }
+                    }
+                    tool.delete("/admin/admin/delete", {id: data.id}, callback);
+                    layer.close(index);
+                });
+            }
+        });*/
+
+        //监听搜索提交
+        form.on('submit(webform)', function (data) {
+            layui.pageTable.reload({
+                where: {
+                    keywords: data.field.keywords
+                },
+                page: {
+                    curr: 1
+                }
+            });
+            return false;
+        });
+    }
+</script>
+{/block}
+<!-- /脚本 -->
