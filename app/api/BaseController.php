@@ -1,8 +1,8 @@
 <?php
 /**
- * @copyright Copyright (c) 2021  
+ * @copyright Copyright (c) 2021
  * @license https://opensource.org/licenses/Apache-2.0
- *  
+ *
  */
 
 declare (strict_types=1);
@@ -82,7 +82,7 @@ abstract class BaseController
         //每页显示数据量
         $this->pageSize = Request::param('page_size', \think\facade\Config::get('app.page_size'));
         $info = Request::header();
-        Log::record("\r\n请求头：" . json_encode($info, JSON_UNESCAPED_UNICODE) . "\r\n请求体：" . json_encode($this->request->post(), JSON_UNESCAPED_UNICODE));
+        Log::record("\r\n请求头：\r\n" . json_encode($info, JSON_UNESCAPED_UNICODE) . "\r\n请求体：\r\n" . json_encode($this->request->post(), JSON_UNESCAPED_UNICODE) . "\r\n");
     }
 
     /**
@@ -143,6 +143,7 @@ abstract class BaseController
      */
     protected function deviceReturn(array $body = [], array $header = []): Response
     {
+        Log::record("\r\n" . 'Res====================' . "\r\n响应头：\r\n" . json_encode($header) . "\r\n响应体：\r\n" . json_encode($body) . "\r\n");
         $response = Response::create($body, 'json')->header($header);
         throw new HttpResponseException($response);
     }

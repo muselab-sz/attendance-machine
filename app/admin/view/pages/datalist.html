@@ -94,6 +94,11 @@
                         align: 'center',
                     },
                     {
+                        field: 'update_time',
+                        title: '更新时间',
+                        align: 'center',
+                    },
+                    {
                         field: 'right',
                         title: '操作',
                         toolbar: '#barDemo',
@@ -128,6 +133,7 @@
                         layer.msg(e.msg);
                     }
                     tool.delete("/admin/pages/delete", {id: data.id}, callback);
+                    table.reload('#pages')
                     gouguInit()
                     layer.close(index);
                 });
